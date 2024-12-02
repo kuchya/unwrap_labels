@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
-
+# pytesseract is a python wrapper for Google's Tesseract-OCR
+import pytesseract
+from pytesseract import Output
 
 BLACK_COLOR = (0, 0, 0)
 WHITE_COLOR = (255, 255, 255)
@@ -158,14 +160,18 @@ class LabelUnwrapper(object):
 
         dest_map = self.calc_dest_map()
 
-        grid_x, grid_y = np.mgrid[0:width - 1:width * 1j, 0:height - 1:height * 1j]
+        grid_x, grid_y = np.mgrid[0:width -
+                                  1:width * 1j, 0:height - 1:height * 1j]
 
         destination = dest_map.reshape(dest_map.size // 2, 2)
         source = source_map.reshape(source_map.size // 2, 2)
 
-        grid_z = griddata(destination, source, (grid_x, grid_y), method='cubic')
-        map_x = np.append([], [ar[:, 0] for ar in grid_z]).reshape(width, height)
-        map_y = np.append([], [ar[:, 1] for ar in grid_z]).reshape(width, height)
+        grid_z = griddata(destination, source,
+                          (grid_x, grid_y), method='cubic')
+        map_x = np.append([], [ar[:, 0]
+                          for ar in grid_z]).reshape(width, height)
+        map_y = np.append([], [ar[:, 1]
+                          for ar in grid_z]).reshape(width, height)
         map_x_32 = map_x.astype('float32')
         map_y_32 = map_y.astype('float32')
         warped = cv2.remap(self.src_image, map_x_32, map_y_32, cv2.INTER_CUBIC)
@@ -193,7 +199,8 @@ class LabelUnwrapper(object):
 
                 dst_cell = np.int32([[0, 0], [dx, 0], [0, dy], [dx, dy]])
 
-                M = cv2.getPerspectiveTransform(np.float32(src_cell), np.float32(dst_cell))
+                M = cv2.getPerspectiveTransform(
+                    np.float32(src_cell), np.float32(dst_cell))
                 dst = cv2.warpPerspective(self.src_image, M, (dx_int, dy_int))
                 x_offset = int(dx * col_index)
                 y_offset = int(dy * row_index)
@@ -252,7 +259,8 @@ class LabelUnwrapper(object):
         for row in mesh:
             for x, y in row:
                 point = (int(round(x)), int(round(y)))
-                cv2.line(self.src_image, point, point, color=color, thickness=thickness)
+                cv2.line(self.src_image, point, point,
+                         color=color, thickness=thickness)
 
     def draw_poly_mask(self, color=WHITE_COLOR):
         cv2.polylines(self.src_image, np.int32([self.points]), 1, color)
@@ -264,11 +272,15 @@ class LabelUnwrapper(object):
         if img is None:
             img = self.src_image
 
-        cv2.line(img, tuple(self.point_f.tolist()), tuple(self.point_a.tolist()), color, thickness)
-        cv2.line(img, tuple(self.point_c.tolist()), tuple(self.point_d.tolist()), color, thickness)
+        cv2.line(img, tuple(self.point_f.tolist()), tuple(
+            self.point_a.tolist()), color, thickness)
+        cv2.line(img, tuple(self.point_c.tolist()), tuple(
+            self.point_d.tolist()), color, thickness)
 
-        self.draw_ellipse(img, self.point_a, self.point_b, self.point_c, color, thickness)
-        self.draw_ellipse(img, self.point_d, self.point_e, self.point_f, color, thickness)
+        self.draw_ellipse(img, self.point_a, self.point_b,
+                          self.point_c, color, thickness)
+        self.draw_ellipse(img, self.point_d, self.point_e,
+                          self.point_f, color, thickness)
 
     def get_label_contour(self, color=WHITE_COLOR, thickness=1):
         mask = np.zeros(self.src_image.shape)
@@ -280,40 +292,48 @@ class LabelUnwrapper(object):
         Generate mask of the label, fully covering it
         """
         mask = np.zeros(self.src_image.shape)
-        pts = np.array([[self.point_a, self.point_c, self.point_d, self.point_f]])
+        pts = np.array(
+            [[self.point_a, self.point_c, self.point_d, self.point_f]])
         cv2.fillPoly(mask, pts, WHITE_COLOR)
-        self.draw_filled_ellipse(mask, self.point_a, self.point_b, self.point_c, True)
-        self.draw_filled_ellipse(mask, self.point_f, self.point_e, self.point_d, False)
+        self.draw_filled_ellipse(
+            mask, self.point_a, self.point_b, self.point_c, True)
+        self.draw_filled_ellipse(
+            mask, self.point_f, self.point_e, self.point_d, False)
         return mask
 
     def draw_ellipse(self, img, left, top, right, color=WHITE_COLOR, thickness=1):
         """
         Draw ellipse using opencv function
         """
-        is_arc, center_point, axis, angle = self.get_ellipse_params(left, top, right)
+        is_arc, center_point, axis, angle = self.get_ellipse_params(
+            left, top, right)
 
         if is_arc:
             start_angle, end_angle = 0, 180
         else:
             start_angle, end_angle = 180, 360
 
-        cv2.ellipse(img, center_point, axis, angle, start_angle, end_angle, color, thickness)
+        cv2.ellipse(img, center_point, axis, angle,
+                    start_angle, end_angle, color, thickness)
 
     def draw_filled_ellipse(self, img, left, top, right, is_top=False):
-        is_arc, center_point, axis, angle = self.get_ellipse_params(left, top, right)
+        is_arc, center_point, axis, angle = self.get_ellipse_params(
+            left, top, right)
 
         if is_arc ^ is_top:
             color = WHITE_COLOR
         else:
             color = BLACK_COLOR
 
-        cv2.ellipse(img, center_point, axis, angle, 0, 360, color=color, thickness=-1)
+        cv2.ellipse(img, center_point, axis, angle,
+                    0, 360, color=color, thickness=-1)
 
     def get_ellipse_params(self, left, top, right):
         center = (left + right) / 2
         center_point = tuple(map(lambda x: int(np.round(x)), center.tolist()))
 
-        axis = (int(np.linalg.norm(left - right) / 2), int(np.linalg.norm(center - top)))
+        axis = (int(np.linalg.norm(left - right) / 2),
+                int(np.linalg.norm(center - top)))
 
         x, y = left - right
         angle = np.arctan(float(y) / x) * 57.296
@@ -378,10 +398,13 @@ class LabelUnwrapper(object):
 
 if __name__ == '__main__':
     shape = {"tag": "label", "shape": [{"x": 0.012232142857142842, "y": 0.2219140625},
-                                       {"x": 0.48655701811449864, "y": 0.14404355243445227},
+                                       {"x": 0.48655701811449864,
+                                           "y": 0.14404355243445227},
                                        {"x": 0.9632539682539681, "y": 0.2171875},
-                                       {"x": 0.9466567460317459, "y": 0.7276953125},
-                                       {"x": 0.48447501824501454, "y": 0.7952298867391453},
+                                       {"x": 0.9466567460317459,
+                                           "y": 0.7276953125},
+                                       {"x": 0.48447501824501454,
+                                           "y": 0.7952298867391453},
                                        {"x": 0.023134920634920626, "y": 0.7258984375}]}
 
     points = []
@@ -394,9 +417,15 @@ if __name__ == '__main__':
 
     dst_image = unwrapper.unwrap()
     for point in unwrapper.points:
-        cv2.line(unwrapper.src_image, tuple(point), tuple(point), color=YELLOW_COLOR, thickness=3)
+        cv2.line(unwrapper.src_image, tuple(point), tuple(
+            point), color=YELLOW_COLOR, thickness=3)
 
     # unwrapper.draw_mesh()
 
-    cv2.imwrite("image_with_mask.png", imcv)
-    cv2.imwrite("unwrapped.jpg", dst_image)
+    # cv2.imwrite("image_with_mask.png", imcv)
+    # cv2.imwrite("unwrapped.jpg", dst_image)
+
+    # pytesseract OCR
+    custom_config = r'--oem 3 --psm 6'
+    text = pytesseract.image_to_string(dst_image, config=custom_config)
+    print(text)
